@@ -63,14 +63,15 @@ pub async fn publish(
     let metadata_len = { payload.split_to(4).as_ref().read_u32::<LittleEndian>()? } as usize;
     log::trace!("metadata len: {}", metadata_len);
 
-    let metadata: PartialPackageVersion =
-        serde_json::from_slice(payload.split_to(metadata_len).as_ref())?;
+    let metadata = payload.split_to(metadata_len);
+    let cksum = format!("{:x}", Sha256::digest(metadata.as_ref()));
+
+    let metadata: PartialPackageVersion = serde_json::from_slice(metadata.as_ref())?;
 
     let crate_file_len = { payload.split_to(4).as_ref().read_u32::<LittleEndian>()? } as usize;
     log::trace!("crate file len: {}", crate_file_len);
 
     let crate_file_bytes = payload.split_to(crate_file_len);
-    let cksum = format!("{:x}", Sha256::digest(crate_file_bytes.as_ref()));
 
     let pkg_version = PackageVersion {
         name: metadata.name,
@@ -81,6 +82,7 @@ pub async fn publish(
         yanked: false,
         links: metadata.links,
     };
+
 
     let package_index = package_index.lock().unwrap();
     package_index.publish(&pkg_version)?;
